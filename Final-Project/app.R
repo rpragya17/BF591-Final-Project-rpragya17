@@ -1,20 +1,19 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+## BF591 Final RShiny Project script
 
+# Load required libraries
 library(shiny)
 library(shinythemes)
-library(colourpicker) # you might need to install this.
+library(colourpicker) 
 library(tidyverse)
 library(glue)
 library(DT)
 library(ggplot2)
-#source("~/BF591-Final-Project-rpragya17/Final-Project/functions.R")
+library(gridExtra)
+library(scales)
+library(gplots)
+library(ggbeeswarm)
+library(stats)
+
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -29,10 +28,10 @@ ui <- fluidPage(
     tabsetPanel(
       
       # ui for Tab1 - Sample information
-      tabPanel("Sample", h3("Sample Information"), p("Load dataset here to explore pre-processed data"),
+      tabPanel("Sample", h3("Sample Information"), p("Load and examine sample information matrix of your dataset here"),
                sidebarLayout(
                  sidebarPanel(
-                   fileInput(inputId = "file1","Load gene expression dataset:", 
+                   fileInput(inputId = "file1","Load metadata:", 
                              placeholder = "metadata.csv", accept = ".csv"),
                  ),
                  mainPanel(
@@ -42,15 +41,29 @@ ui <- fluidPage(
                      tabPanel("Plots", plotOutput("density_plots")))),
                  ),
       ),
+      
       # ui for Tab2 - Counts data analysis
-      tabPanel("Counts",
+      tabPanel("Counts", h3("Counts Analysis"), p("Explore and visualize counts matrices here"),
                sidebarLayout(
-                 sidebarPanel("Input data here"),
+                 sidebarPanel(fileInput(inputId = "file2","Load normalized counts data:", 
+                                        placeholder = "norm_counts.csv", accept = ".csv"),
+                              h4("Select gene filters"),
+                              sliderInput(inputId = "min_var", "Minimum percentile of variance:", 
+                                          min = 0, max = 100, value = 50),
+                              sliderInput(inputId = "min_samp", "Minimum number of non-zero samples:",
+                                          min = 0, max = 69, value = 35),
+                              submitButton("Submit")),
+                
                  mainPanel(
                    tabsetPanel(
-                     tabPanel("Sub-tab 1A", "This is sub-tab 1A content."),
-                     tabPanel("Sub-tab 1B", "This is sub-tab 1B content.")))),
-      ),
+                     tabPanel("Summary", tableOutput("counts_summary")),
+                     tabPanel("Diagnostic Plots", plotOutput("scatter_plots")),
+                     tabPanel("Heatmap and Clustering", plotOutput("heatmap", width = '100%', height = '700px')),
+                     tabPanel("PC Analysis", 
+                              numericInput(inputId = "top", value = 2,
+                                           "Select number of Principal Components (>1) you would like to visualize", width = '100%'),
+                              plotOutput("top_pca", width = '100%', height = '700px')))),
+      ),),
       
       # ui for Tab3 - Differential Expression Analysis result visualization
       tabPanel("Differential Expression", h3("Differential Expression Analysis"), 
@@ -61,9 +74,9 @@ ui <- fluidPage(
                                                                                                          "stat", "pvalue", "padj")),
                               radioButtons(inputId = "y_axis", "Choose the column for y-axis", choices=c("baseMean","log2FoldChange", "lfcSE", 
                                                                                                          "stat", "pvalue", "padj")),
-                              colourInput(inputId = "base", "Select base point color", value = "midnightblue", showColour = c("both", "text", "background"),
+                              colourInput(inputId = "base", "Select base point color", value = "#010100", showColour = c("both", "text", "background"),
                                           palette = c("square", "limited"), allowedCols = NULL, allowTransparent = FALSE, returnName = FALSE, closeOnClick = FALSE),
-                              colourInput(inputId = "highlight", "Highlight point color", value = "springgreen", showColour = c("both", "text", "background"), 
+                              colourInput(inputId = "highlight", "Highlight point color", value = "#FC5E70", showColour = c("both", "text", "background"), 
                                           palette = c("square", "limited"), allowedCols = NULL, allowTransparent = FALSE, returnName = FALSE, closeOnClick = FALSE),
                               sliderInput(inputId = "slider", "Select the magnitude of the p adjusted coloring:", min = -100, max = 0,
                                           value = -50),
@@ -81,18 +94,24 @@ ui <- fluidPage(
       # ui for Tab4 
       tabPanel("Tab4",
                sidebarLayout(
-                 sidebarPanel("Input data here"),
+                 sidebarPanel(
+                   fileInput(inputId = 'file4_counts', label = 'Load normalized counts matrix CSV'),
+                   fileInput(inputId = 'file4_meta', label = 'Load sample information matrix CSV'),
+                   uiOutput("meta_selector"),
+                   #insert gene search box here
+                   textInput("gene", label = "Enter gene to search for", placeholder = "ENSG00000000003.10"),
+                   selectInput("plotType", label = "Choose what type of plot to make", choices = c("Bar", "Box", "Violin", "Beeswarm")),
+                   submitButton(text='Go')),
                  mainPanel(
                    tabsetPanel(
-                     tabPanel("Sub-tab 1A", "This is sub-tab 1A content."),
-                     tabPanel("Sub-tab 1B", "This is sub-tab 1B content.")))),
+                     tabPanel("Sub-tab 1A", plotOutput("plot_ige"))))),
               ),
       )
 )
 
-
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  options(shiny.maxRequestSize=30*1024^2)
     
     ## Tab 1 
     # Function to load data
@@ -116,30 +135,30 @@ server <- function(input, output, session) {
     # Functions to create violin plot for continuous variables in metadata
     draw_density_1 <- function(file1){
       density_plot_1 <- ggplot(file1) +
-        geom_density(mapping=aes(x=PMI), fill="salmon") +
+        geom_density(mapping=aes(x=PMI), fill="#FBBC54") +
         labs(title="Density plot of PMI", 
               x = "PMI", y = "density")+
-        theme_classic()
+        theme_linedraw()
       return(density_plot_1)
     }
     draw_density_2 <- function(file1){
       density_plot_2 <- ggplot(file1) +
-        geom_density(mapping=aes(x=Age_of_death), fill="salmon") +
+        geom_density(mapping=aes(x=Age_of_death), fill="#F8DCB0") +
         labs(title="Density plot of Age of Death", 
              x = "Age of Death", y = "density")+
-        theme_classic()
+        theme_linedraw()
       return(density_plot_2)
     }
     draw_density_3 <- function(file1){
       density_plot_3 <- ggplot(file1) +
-        geom_density(mapping=aes(x=RIN), fill="salmon") +
+        geom_density(mapping=aes(x=RIN), fill="#FC5E70") +
         labs(title="Density plot of RIN", 
              x = "RIN", y = "density")+
-        theme_classic()
+        theme_linedraw()
       return(density_plot_3)
     }
     
-    # Render output for Tab 1
+    # Render output for first subtab
     output$summary_table <- renderTable({
       make_summary(load_data_1())
     })
@@ -155,22 +174,153 @@ server <- function(input, output, session) {
       density_2 <- draw_density_2(load_data_1())
       density_3 <- draw_density_3(load_data_1())
       
-      grid.arrange(plot1, plot2, plot3, ncol = 3)
-      #ggarrange(plot1, plot2, plot3, ncol = 3, nrow = 1)
+      grid.arrange(density_1, density_2, density_3, ncol = 3)
     })
-    # output$density1 <- renderPlot({
-    #   draw_density_1(load_data_1())
-    # })
-    # 
-    # output$density2 <- renderPlot({
-    #   draw_density_2(load_data_1())
-    # })
-    # 
-    # output$density3 <- renderPlot({
-    #   draw_density_3(load_data_1())
-    # })
     
-  
+    ## Tab 2
+    # Function to load data 
+    load_data_2 <- reactive({
+      if (!is.null(input$file2)){
+        file2 <- read_csv(input$file2$datapath)
+        return(file2)}
+      else{return(NULL)}
+    })
+    
+    # Function to create summary table 
+    make_counts_summary <- function(file3, min_var, min_samp) {
+      # Filter genes based on variance and number of non-zero samples
+      filtered_genes <- file3[rowSums(file3 > 0) >= min_samp & apply(file3, 1, var) >= min_var, ]
+
+      # Get summary for the filtered data
+      rows_filtered <- nrow(filtered_genes)
+      rows_not_filtered <- nrow(file3) - rows_filtered
+      gene_filter <- percent((rows_filtered / nrow(file3)))
+      gene_unfilter <- percent((rows_not_filtered) / nrow(file3))
+
+      # Create summary data frame
+      summary_df <- data.frame(Description = c("Number of Genes", "Number of Samples", "Number of Genes (Filtered):", 
+                                               "% of genes filtered", "Number of Genes (not Filtered:)", "%genes not filtered:"), 
+                               Value = c(nrow(file3), ncol(file3), rows_filtered, gene_filter, rows_not_filtered, gene_unfilter))
+      return(summary_df)
+    }
+    
+    # Function to draw diagnostic scatter plots 
+    draw_scatter1 <- function(file3, min_var){
+      # filter data according to parameters
+      med_data<-file3 %>% mutate(Median = apply(file3[-1], MARGIN = 1, FUN = median), 
+                                  Variance = apply(file3[-1], MARGIN = 1, FUN = var))
+      perc_val <- quantile(med_data$Variance, probs = min_var/100)   #calculate percentile
+      med_data <- med_data %>% mutate(thresh = case_when(Variance >= perc_val ~ "TRUE", TRUE ~ "FALSE")) #sort genes by percentile
+      
+      # plot scatter plot
+      cols <- c("FALSE" = "#FC5E70", "TRUE" = "#010100")
+      scatter1 <- ggplot(med_data, aes(Median, Variance))+
+        geom_point(aes(color=thresh), alpha=0.75)+
+        scale_color_manual(values = cols)+
+        labs(title = 'Plot of Median vs Variance.', subtitle = "Genes filtered out are in red. X and Y axes are log-scaled.")+
+        scale_y_log10()+
+        scale_x_log10()+
+        theme_linedraw()+
+        theme(legend.position = 'bottom')
+      return(scatter1)
+    }
+    
+    draw_scatter2 <- function(file3, min_samp){
+      all_samples <- ncol(file3)-1  
+      
+      to_plot <- file3 %>% mutate(Median = apply(file3[-1], MARGIN = 1, FUN = median)) %>%
+        mutate(Median = as.numeric(Median))   
+      to_plot[to_plot == 0] <- NA
+      to_plot$no_zeros <- rowSums(is.na(to_plot))  #make new col, with counts.
+      to_plot <- to_plot %>% mutate(thresh = case_when(no_zeros <= min_samp ~ "TRUE", TRUE ~ "FALSE"))
+      
+      #plot scatter plot
+      cols <- c("FALSE" = "#FC5E70", "TRUE" = "#010100")
+      scatter2 <- ggplot(to_plot, aes(Median, no_zeros))+
+        geom_point(aes(color=thresh), alpha=0.75)+
+        scale_color_manual(values = cols)+
+        scale_x_log10()+
+        labs(title = 'Plot of Median vs Number of Non-Zero genes', subtitle = "Genes filtered out are in red.")+
+        theme_linedraw()+
+        ylab('Number of samples with zero count')+
+        theme(legend.position = 'bottom')
+      return(scatter2)
+      }
+    
+    # Function to draw clustered heatmap of counts after filtering
+    draw_heatmap <- function(file3, min_var, min_samp){
+      file3[file3 == 0] <- NA
+      #file3 <- na_if(file3, 0)
+      file3$no_zeros <- rowSums(is.na(file3))  #make new col, with counts.
+      file3 <- filter(file3, no_zeros <= min_samp)
+      file3 <- log10(file3[,!colnames(file3) %in% c("gene", "no_zeros")]) #exclude the gene names column and log scale the values  
+      
+      # plot
+      to_plot_heat <- file3 %>% 
+        mutate(variance = apply(file3, MARGIN = 1, FUN = var)) #compute variance to filter the data
+      min_val <- quantile(to_plot_heat$variance, probs = min_var/100, na.rm = TRUE)   #calculate percentile
+      to_plot_heat <- filter(to_plot_heat, variance >= min_val) #filter the tibble
+      hmap <- heatmap.2(as.matrix(to_plot_heat[-ncol(to_plot_heat)]), scale = "row")
+      return(hmap)
+    }
+    
+    # Function to draw scatterplot of PCA projections
+    
+    draw_pca <- function(file3, top, min_var){
+      filtered_counts <- file3 
+      filtered_counts <- filtered_counts %>% 
+        mutate(variance = apply(filtered_counts[-1], MARGIN = 1, FUN = var), .after = gene) # calculate variance for filtering
+      perc_val <- quantile(filtered_counts$variance, probs = min_var/100, na.rm = TRUE)   # calculate percentile
+      filtered_counts <- filter(filtered_counts, variance >= perc_val) # filter the tibble
+      pca_res <- prcomp(t(filtered_counts[-c(1,2)]), scale = FALSE) # transpose the data and perform PCA
+
+      # Extract the scores and variances
+      scores <- as.data.frame(pca_res$x)
+      variances <- pca_res$sdev^2
+      
+      # Get the top n principal components
+      top_pcs <- scores[, 1:top]
+      
+      # Filter out principal components with variance less than min_var
+      top_pcs <- top_pcs[, variances[1:top] >= min_var]
+      
+      # Reshape the data for plotting with ggbeeswarm
+      df <- top_pcs %>% pivot_longer(cols = 1:top, names_to = "PC", values_to = "Score")
+      
+      # plot top pcs 
+      plotpca <- ggplot(df, aes(PC, Score)) +
+        geom_quasirandom() +
+        labs(x = paste0("PC1-PC", top), y = "Scores") +
+        theme_linedraw()
+      return(plotpca)
+    }
+    
+    # Render output of summary table 
+    output$counts_summary <- renderTable({
+      input$Submit
+      make_counts_summary(load_data_2())
+    })
+    
+    # Render output of diagnostic plots 
+    output$scatter_plots <- renderPlot({
+      input$Submit
+      scatter1 <- draw_scatter1(load_data_2(), min_var = input$min_var)
+      scatter2 <- draw_scatter2(load_data_2(), min_samp = input$min_samp)
+      grid.arrange(scatter1, scatter2, ncol=2)
+    })
+    
+    # Render heatmap 
+    output$heatmap <- renderPlot({
+      input$Submit
+      draw_heatmap(load_data_2(), input$min_var, input$min_samp)
+    })
+    
+    # Render pca plot
+    output$top_pca <- renderPlot({
+      input$Submit
+      draw_pca(load_data_2(), input$top, input$min_var)
+    })
+
     ## Tab 3
     # Function to load data 
     load_data_3 <- reactive({
