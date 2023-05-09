@@ -93,7 +93,7 @@ ui <- fluidPage(
       
       # ui for Tab4 - Visualization of Individual Gene Expression
       tabPanel("Individual Gene Expresion", h3("Individual Gene Expression Visualization"), 
-               p("Upload the normalized counts and metadate here to visualize individual gene count by a desired sample information variable"),
+               p("Upload the normalized counts and metadata here to visualize individual gene count by a desired sample information variable"),
                sidebarLayout(
                  sidebarPanel(
                    fileInput(inputId = 'file4_counts', label = 'Load normalized counts matrix CSV'),
@@ -131,18 +131,16 @@ server <- function(input, output, session) {
       return(summary_table)
     }
     
-    # Functions to create violin plot for continuous variables in metadata
+    # Function to draw density plot for continuous variables in metadata
     draw_density <- function(file1) {
-      # Get index of numeric columns
-      numeric_cols <- sapply(file1, is.numeric)
+      numeric_cols <- sapply(file1, is.numeric) # Find all columns containing continuous variables
       numeric_cols <- which(numeric_cols)
       if (length(numeric_cols) == 0) {
         return(NULL)
       }
+      data_num <- file1[, numeric_cols] # Subset data so it only contains continuous variables
       
-      # Subset data frame to numeric columns
-      data_num <- file1[, numeric_cols]
-      # Create density plots
+      # Draw plots for each column in df
       plots <- list()
       for (i in 1:length(numeric_cols)) {
         plots[[i]] <- ggplot(data = data_num, aes_string(x = names(data_num)[i])) + 
@@ -152,33 +150,6 @@ server <- function(input, output, session) {
       }
       return(plots)
     }
-    
-    #mapping=aes(x=names(data_num)[i]), fill= "coral"
-    
-    # draw_density_1 <- function(file1){
-    #   density_plot_1 <- ggplot(file1) +
-    #     geom_density(mapping=aes(x=PMI), fill="#FBBC54") +
-    #     labs(title="Density plot of PMI", 
-    #           x = "PMI", y = "density")+
-    #     theme_linedraw()
-    #   return(density_plot_1)
-    # }
-    # draw_density_2 <- function(file1){
-    #   density_plot_2 <- ggplot(file1) +
-    #     geom_density(mapping=aes(x=Age_of_death), fill="#F8DCB0") +
-    #     labs(title="Density plot of Age of Death", 
-    #          x = "Age of Death", y = "density")+
-    #     theme_linedraw()
-    #   return(density_plot_2)
-    # }
-    # draw_density_3 <- function(file1){
-    #   density_plot_3 <- ggplot(file1) +
-    #     geom_density(mapping=aes(x=RIN), fill="#FC5E70") +
-    #     labs(title="Density plot of RIN", 
-    #          x = "RIN", y = "density")+
-    #     theme_linedraw()
-    #   return(density_plot_3)
-    # }
     
     # Render output for first subtab
     output$summary_table <- renderTable({
@@ -193,7 +164,7 @@ server <- function(input, output, session) {
     # Render density plots for third subtab 
     output$density_plots <- renderPlot({
       plots <- draw_density(load_data_1())
-      grid.arrange(grobs = plots, ncol = 5)
+      grid.arrange(grobs = plots, ncol = 5) # Arrange 5 plots in one row 
     })
     
     ## Tab 2
@@ -207,8 +178,7 @@ server <- function(input, output, session) {
     
     # Function to create summary table 
     make_counts_summary <- function(file3, min_var, min_samp) {
-      # Filter genes based on variance and number of non-zero samples
-      filtered_genes <- file3[rowSums(file3 > 0) >= min_samp & apply(file3, 1, var) >= min_var, ]
+      filtered_genes <- file3[rowSums(file3 > 0) >= min_samp & apply(file3, 1, var) >= min_var, ] # Filter genes
 
       # Get summary for the filtered data
       rows_filtered <- nrow(filtered_genes)
@@ -216,7 +186,7 @@ server <- function(input, output, session) {
       gene_filter <- percent((rows_filtered / nrow(file3)))
       gene_unfilter <- percent((rows_not_filtered) / nrow(file3))
 
-      # Create summary data frame
+      # Generate summary data frame
       summary_df <- data.frame(Description = c("Number of Genes", "Number of Samples", "Number of Genes (Filtered):", 
                                                "% of genes filtered", "Number of Genes (not Filtered:)", "%genes not filtered:"), 
                                Value = c(nrow(file3), ncol(file3), rows_filtered, gene_filter, rows_not_filtered, gene_unfilter))
@@ -225,13 +195,12 @@ server <- function(input, output, session) {
     
     # Function to draw diagnostic scatter plots 
     draw_scatter1 <- function(file3, min_var){
-      # filter data according to parameters
       med_data<-file3 %>% mutate(Median = apply(file3[-1], MARGIN = 1, FUN = median), 
-                                  Variance = apply(file3[-1], MARGIN = 1, FUN = var))
+                                  Variance = apply(file3[-1], MARGIN = 1, FUN = var)) # Filter data
       perc_val <- quantile(med_data$Variance, probs = min_var/100)   #calculate percentile
       med_data <- med_data %>% mutate(thresh = case_when(Variance >= perc_val ~ "TRUE", TRUE ~ "FALSE")) #sort genes by percentile
       
-      # plot scatter plot
+      # Draw scatter plot
       cols <- c("FALSE" = "#FC5E70", "TRUE" = "#010100")
       scatter1 <- ggplot(med_data, aes(Median, Variance))+
         geom_point(aes(color=thresh), alpha=0.75)+
@@ -248,12 +217,12 @@ server <- function(input, output, session) {
       all_samples <- ncol(file3)-1  
       
       to_plot <- file3 %>% mutate(Median = apply(file3[-1], MARGIN = 1, FUN = median)) %>%
-        mutate(Median = as.numeric(Median))   
+        mutate(Median = as.numeric(Median)) # Filter data
       to_plot[to_plot == 0] <- NA
       to_plot$no_zeros <- rowSums(is.na(to_plot))  #make new col, with counts.
       to_plot <- to_plot %>% mutate(thresh = case_when(no_zeros <= min_samp ~ "TRUE", TRUE ~ "FALSE"))
       
-      #plot scatter plot
+      # Draw scatter plot
       cols <- c("FALSE" = "#FC5E70", "TRUE" = "#010100")
       scatter2 <- ggplot(to_plot, aes(Median, no_zeros))+
         geom_point(aes(color=thresh), alpha=0.75)+
@@ -268,30 +237,29 @@ server <- function(input, output, session) {
     
     # Function to draw clustered heatmap of counts after filtering
     draw_heatmap <- function(file3, min_var, min_samp){
-      file3[file3 == 0] <- NA
-      #file3 <- na_if(file3, 0)
-      file3$no_zeros <- rowSums(is.na(file3))  #make new col, with counts.
+      file3[file3 == 0] <- NA # Process df for plotting  
+      file3$no_zeros <- rowSums(is.na(file3))  
       file3 <- filter(file3, no_zeros <= min_samp)
-      file3 <- log10(file3[,!colnames(file3) %in% c("gene", "no_zeros")]) #exclude the gene names column and log scale the values  
+      file3 <- log10(file3[,!colnames(file3) %in% c("gene", "no_zeros")]) 
       
-      # plot
       to_plot_heat <- file3 %>% 
-        mutate(variance = apply(file3, MARGIN = 1, FUN = var)) #compute variance to filter the data
-      min_val <- quantile(to_plot_heat$variance, probs = min_var/100, na.rm = TRUE)   #calculate percentile
-      to_plot_heat <- filter(to_plot_heat, variance >= min_val) #filter the tibble
+        mutate(variance = apply(file3, MARGIN = 1, FUN = var)) # Calculating variance, percentile and filtering df
+      min_val <- quantile(to_plot_heat$variance, probs = min_var/100, na.rm = TRUE)   
+      to_plot_heat <- filter(to_plot_heat, variance >= min_val) 
+      
+      # Draw heatmap with clustering
       hmap <- heatmap.2(as.matrix(to_plot_heat[-ncol(to_plot_heat)]), scale = "row")
       return(hmap)
     }
     
     # Function to draw scatterplot of PCA projections
-    
     draw_pca <- function(file3, top, min_var){
       filtered_counts <- file3 
       filtered_counts <- filtered_counts %>% 
-        mutate(variance = apply(filtered_counts[-1], MARGIN = 1, FUN = var), .after = gene) # calculate variance for filtering
-      perc_val <- quantile(filtered_counts$variance, probs = min_var/100, na.rm = TRUE)   # calculate percentile
-      filtered_counts <- filter(filtered_counts, variance >= perc_val) # filter the tibble
-      pca_res <- prcomp(t(filtered_counts[-c(1,2)]), scale = FALSE) # transpose the data and perform PCA
+        mutate(variance = apply(filtered_counts[-1], MARGIN = 1, FUN = var), .after = gene) # Calculating variance, percentile and filtering df
+      perc_val <- quantile(filtered_counts$variance, probs = min_var/100, na.rm = TRUE)  
+      filtered_counts <- filter(filtered_counts, variance >= perc_val)
+      pca_res <- prcomp(t(filtered_counts[-c(1,2)]), scale = FALSE) 
 
       # Extract the scores and variances
       scores <- as.data.frame(pca_res$x)
@@ -367,6 +335,7 @@ server <- function(input, output, session) {
     # Function to generate table with data for degs filtered in volcano plot 
     draw_table <- function(file3, slider) {
       new_df <- subset(file3, padj < 10^slider)
+      
       # Format p-value columns to display more digits
       new_df$pvalue <- formatC(new_df$pvalue, digits = 5, format = "e")
       new_df$padj <- formatC(new_df$padj, digits = 5, format = "e")
@@ -420,7 +389,7 @@ server <- function(input, output, session) {
     
     # function to dynamically generate plot type options
     output$plotTypeSelector <- renderUI({
-      selectInput("plotType", "Select plot type:", choices = c("Beeswarm", "Violin", "Bar"))
+      selectInput("plotType", "Select plot type:", choices = c("Beeswarm", "Violin", "Bar", "Box"))
     })
     
     # function to make distribution plots
@@ -429,6 +398,7 @@ server <- function(input, output, session) {
       gene_counts <- as.numeric(as.vector(counts[select_gene, ]))
       plot_tib <- tibble(Gene_Counts = gene_counts, meta_value = meta[[categorical_vars]])
       
+      # Draw plot requested
       if (plot_type == "Beeswarm") {
         plot <- ggplot(plot_tib, aes(x = meta_value, y = Gene_Counts)) +
           geom_beeswarm() +
