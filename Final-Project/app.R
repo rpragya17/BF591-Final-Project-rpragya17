@@ -22,7 +22,7 @@ ui <- fluidPage(
     
     # Application title
     titlePanel("BF591 Final Project: Bioinformatics Analysis Webapp"),
-    p("Use this app explore and visualize your data."),
+    p("Use this app to explore and visualize your data."),
     
     
     tabsetPanel(
@@ -132,30 +132,53 @@ server <- function(input, output, session) {
     }
     
     # Functions to create violin plot for continuous variables in metadata
-    draw_density_1 <- function(file1){
-      density_plot_1 <- ggplot(file1) +
-        geom_density(mapping=aes(x=PMI), fill="#FBBC54") +
-        labs(title="Density plot of PMI", 
-              x = "PMI", y = "density")+
-        theme_linedraw()
-      return(density_plot_1)
+    draw_density <- function(file1) {
+      # Get index of numeric columns
+      numeric_cols <- sapply(file1, is.numeric)
+      numeric_cols <- which(numeric_cols)
+      if (length(numeric_cols) == 0) {
+        return(NULL)
+      }
+      
+      # Subset data frame to numeric columns
+      data_num <- file1[, numeric_cols]
+      # Create density plots
+      plots <- list()
+      for (i in 1:length(numeric_cols)) {
+        plots[[i]] <- ggplot(data = data_num, aes_string(x = names(data_num)[i])) + 
+          geom_density() + 
+          theme_linedraw() +
+          labs(title = names(data_num)[i])
+      }
+      return(plots)
     }
-    draw_density_2 <- function(file1){
-      density_plot_2 <- ggplot(file1) +
-        geom_density(mapping=aes(x=Age_of_death), fill="#F8DCB0") +
-        labs(title="Density plot of Age of Death", 
-             x = "Age of Death", y = "density")+
-        theme_linedraw()
-      return(density_plot_2)
-    }
-    draw_density_3 <- function(file1){
-      density_plot_3 <- ggplot(file1) +
-        geom_density(mapping=aes(x=RIN), fill="#FC5E70") +
-        labs(title="Density plot of RIN", 
-             x = "RIN", y = "density")+
-        theme_linedraw()
-      return(density_plot_3)
-    }
+    
+    #mapping=aes(x=names(data_num)[i]), fill= "coral"
+    
+    # draw_density_1 <- function(file1){
+    #   density_plot_1 <- ggplot(file1) +
+    #     geom_density(mapping=aes(x=PMI), fill="#FBBC54") +
+    #     labs(title="Density plot of PMI", 
+    #           x = "PMI", y = "density")+
+    #     theme_linedraw()
+    #   return(density_plot_1)
+    # }
+    # draw_density_2 <- function(file1){
+    #   density_plot_2 <- ggplot(file1) +
+    #     geom_density(mapping=aes(x=Age_of_death), fill="#F8DCB0") +
+    #     labs(title="Density plot of Age of Death", 
+    #          x = "Age of Death", y = "density")+
+    #     theme_linedraw()
+    #   return(density_plot_2)
+    # }
+    # draw_density_3 <- function(file1){
+    #   density_plot_3 <- ggplot(file1) +
+    #     geom_density(mapping=aes(x=RIN), fill="#FC5E70") +
+    #     labs(title="Density plot of RIN", 
+    #          x = "RIN", y = "density")+
+    #     theme_linedraw()
+    #   return(density_plot_3)
+    # }
     
     # Render output for first subtab
     output$summary_table <- renderTable({
@@ -169,11 +192,8 @@ server <- function(input, output, session) {
     
     # Render density plots for third subtab 
     output$density_plots <- renderPlot({
-      density_1 <- draw_density_1(load_data_1())
-      density_2 <- draw_density_2(load_data_1())
-      density_3 <- draw_density_3(load_data_1())
-      
-      grid.arrange(density_1, density_2, density_3, ncol = 3)
+      plots <- draw_density(load_data_1())
+      grid.arrange(grobs = plots, ncol = 5)
     })
     
     ## Tab 2
