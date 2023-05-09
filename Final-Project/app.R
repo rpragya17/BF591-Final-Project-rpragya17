@@ -22,7 +22,8 @@ ui <- fluidPage(
     
     # Application title
     titlePanel("BF591 Final Project: Bioinformatics Analysis Webapp"),
-    p("Use this app to explore and visualize your data."),
+    p("Use this app to explore and visualize your mRNA seq data."),
+    p("Developed by Pragya Rawat as part of the BF591 - R for Biological Sciences coursework."),
     
     
     tabsetPanel(
@@ -92,7 +93,7 @@ ui <- fluidPage(
               ),
       
       # ui for Tab4 - Visualization of Individual Gene Expression
-      tabPanel("Individual Gene Expresion", h3("Individual Gene Expression Visualization"), 
+      tabPanel("Individual Gene Expression", h3("Individual Gene Expression Visualization"), 
                p("Upload the normalized counts and metadata here to visualize individual gene count by a desired sample information variable"),
                sidebarLayout(
                  sidebarPanel(
