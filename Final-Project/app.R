@@ -22,7 +22,7 @@ ui <- fluidPage(
     
     # Application title
     titlePanel("BF591 Final Project: Bioinformatics Analysis Webapp"),
-    p("paragraph describing what app does"),
+    p("Use this app explore and visualize your data."),
     
     
     tabsetPanel(
@@ -297,7 +297,7 @@ server <- function(input, output, session) {
     # Render output of summary table 
     output$counts_summary <- renderTable({
       input$Submit
-      make_counts_summary(load_data_2())
+      make_counts_summary(load_data_2(), input$min_var, input$min_samp)
     })
     
     # Render output of diagnostic plots 
