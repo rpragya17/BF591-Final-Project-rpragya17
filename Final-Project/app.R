@@ -91,23 +91,22 @@ ui <- fluidPage(
                   ),
               ),
       
-      # ui for Tab4 
-      tabPanel("Tab4",
+      # ui for Tab4 - Visualization of Individual Gene Expression
+      tabPanel("Individual Gene Expresion", h3("Individual Gene Expression Visualization"), 
+               p("Upload the normalized counts and metadate here to visualize individual gene count by a desired sample information variable"),
                sidebarLayout(
                  sidebarPanel(
                    fileInput(inputId = 'file4_counts', label = 'Load normalized counts matrix CSV'),
                    fileInput(inputId = 'file4_meta', label = 'Load sample information matrix CSV'),
                    uiOutput("meta_selector"),
-                   #insert gene search box here
                    textInput("gene", label = "Enter gene to search for", placeholder = "ENSG00000000003.10"),
                    selectInput("plotType", label = "Choose what type of plot to make", choices = c("Bar", "Box", "Violin", "Beeswarm")),
                    submitButton(text='Go')),
-                 mainPanel(
-                   tabsetPanel(
-                     tabPanel("Sub-tab 1A", plotOutput("plot_ige"))))),
+                 mainPanel(plotOutput("plot_ige"))
+                 )),
               ),
       )
-)
+
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
@@ -375,6 +374,70 @@ server <- function(input, output, session) {
     output$volc_table <- DT::renderDataTable({
       input$plot
       draw_table(load_data_3(), input$slider)
+    })
+    
+    ## Tab 4 
+    # function to load normalized counts input file
+    load_data_4_counts <- reactive({
+      req(input$file4_counts)
+      read_csv(input$file4_counts$datapath)
+    })
+    
+    # function to load sample information input file
+    load_data_4_meta <- reactive({
+      req(input$file4_meta)
+      read_csv(input$file4_meta$datapath)
+    })
+    
+    # function to dynamically generate categorical variable options
+    output$meta_selector <- renderUI({
+      meta <- load_data_4_meta()
+      if (!is.null(meta)) {
+        categorical_vars <- names(meta)[sapply(meta, is.numeric)]
+        selectInput("metachoice", "Select categorical variable:", choices = categorical_vars)
+      }
+    })
+    
+    # function to dynamically generate plot type options
+    output$plotTypeSelector <- renderUI({
+      selectInput("plotType", "Select plot type:", choices = c("Beeswarm", "Violin", "Bar"))
+    })
+    
+    # function to make distribution plots
+    plot_ige <- function(counts, meta, categorical_vars, select_gene, plot_type) {
+      counts <- column_to_rownames(counts, var = "gene")
+      gene_counts <- as.numeric(as.vector(counts[select_gene, ]))
+      plot_tib <- tibble(Gene_Counts = gene_counts, meta_value = meta[[categorical_vars]])
+      
+      if (plot_type == "Beeswarm") {
+        plot <- ggplot(plot_tib, aes(x = meta_value, y = Gene_Counts)) +
+          geom_beeswarm() +
+          theme_linedraw() +
+          labs(title = str_c("Plot of gene counts vs ", categorical_vars))
+      } else if (plot_type == "Violin") {
+        plot <- ggplot(plot_tib, aes(x = meta_value, y = Gene_Counts)) +
+          geom_violin() +
+          theme_linedraw() +
+          labs(title = str_c("Plot of gene counts vs ", categorical_vars))
+      } else if (plot_type == "Bar") {
+        plot <- ggplot(plot_tib, aes(x = meta_value)) +
+          geom_bar() +
+          theme_linedraw() +
+          labs(title = str_c("Plot of gene counts vs ", categorical_vars))
+      } else{
+          plot <- ggplot(plot_tib, aes(x = meta_value, y = Gene_Counts)) +
+            geom_boxplot() +
+            theme_linedraw() +
+            labs(title = str_c("Plot of gene counts vs ", categorical_vars))
+      }
+      
+      return(plot)
+    }
+    
+    # Render output plot
+    output$plot_ige <- renderPlot({
+      input$Go
+      plot_ige(load_data_4_counts(), load_data_4_meta(), input$metachoice, input$gene, input$plotType)
     })
 }
 
